@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -27,9 +28,20 @@ class MainActivity : AppCompatActivity() {
     private lateinit var addButton: Button
     private lateinit var removeAllButton: Button
     private lateinit var inputText: EditText
+    private lateinit var changeKeyButton: Button
+    private lateinit var changeKeyText: EditText
+    private lateinit var keyInfoText: TextView
 
-    // IMPORTANT! Use your own key because every key has daily limit of calls (Sikiric, Kapic)
-    private val apiKey = "ENTER KEY HERE"
+    // IMPORTANT! Use your own key because every key has daily limit of calls
+    private var apiKey = ""
+
+    private fun getApiKey() : String {
+        return apiKey
+    }
+
+    private fun setApiKey(newKey : String) {
+        apiKey = newKey
+    }
 
     // Declaration of the MQTT client
     private val brokerUrl = "tcp://broker.hivemq.com:1883"
@@ -66,6 +78,9 @@ class MainActivity : AppCompatActivity() {
         addButton = findViewById(R.id.add_button)
         removeAllButton = findViewById(R.id.remove_all_button)
         inputText = findViewById(R.id.channel_input)
+        changeKeyButton = findViewById(R.id.change_key)
+        changeKeyText = findViewById(R.id.api_key_input)
+        keyInfoText = findViewById(R.id.key_info)
 
         // If channel url is shared from YouTube application
         if (intent?.action == Intent.ACTION_SEND && intent?.type == "text/plain") {
@@ -75,6 +90,14 @@ class MainActivity : AppCompatActivity() {
         // Initialization of RecyclerView
         channelsRecycler.adapter = adapter
         channelsRecycler.layoutManager = LinearLayoutManager(this)
+
+        // Setup of api key changing button
+        changeKeyButton.setOnClickListener {
+            if(changeKeyText.text.toString().isNotEmpty()){
+                setApiKey(changeKeyText.text.toString())
+                keyInfoText.text = "Your current API key: " + getApiKey()
+            }
+        }
 
         // Setup of onclick listeners for Remove All button and Add button
         addButton.setOnClickListener {
@@ -91,7 +114,6 @@ class MainActivity : AppCompatActivity() {
                 onClickAdd(inputText.text.toString())
                 inputText.text.clear()
             }
-
         }
 
         removeAllButton.setOnClickListener {
@@ -99,7 +121,6 @@ class MainActivity : AppCompatActivity() {
             publishRemoveAll()
         }
     }
-
 
     /**
      * Checks if the device has dark mode set
