@@ -1,5 +1,7 @@
+#----- Library imports -----#
+
 from ili934xnew import ILI9341, color565
-from machine import Pin, SPI, ADC
+from machine import Pin, SPI, ADC, PWM, Timer
 from micropython import const
 import os
 import glcdfont
@@ -10,68 +12,38 @@ import time
 
 import network
 from umqtt.robust import MQTTClient
-from machine import Pin, ADC, PWM, Timer
 import time
 import json
 
+#----- Initialization of needed values -----#
 
-
-
-
-
-
-
-
-# Define the button pin
+# Defining the button pin used for moving forvard through list of channels
 button_pin = Pin(0, Pin.IN, Pin.PULL_UP)
-
-adc=ADC(Pin(28))
 
 # Defining Channel class
 class Channel:
+   
+    # Constructor with all parameters
     def __init__(self, name, views, subs):
         self.name = name
         self.views = views
         self.subs = subs
    
+    # print method that prints each attribute (can be used for debug)
     def print_values(self):
         print("name:", self.name)
         print("views:", self.views)
         print("subs:", self.subs)
+       
+# Defining a list to store active channel objects
+channel_list = []
 
+# Defining the current channel index, -1 if channel_list is empty
+current_channel_index = -1        
 
+#----- Establishing WiFi connection -----#
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Povezivanje na Wi-Fi mrežu
+# Connecting to WiFi (Faculty WiFi configuration)
 sta_if = network.WLAN(network.STA_IF)
 sta_if.active(True)
 sta_if.connect("Ugradbeni", "USlaboratorija220")
@@ -79,71 +51,39 @@ while not sta_if.isconnected():
     pass
 print("Wi-Fi je povezan!")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Define a list to store the channel objects
-channel_list = []
-
-# Define the current channel index
-current_channel_index = 0
-
-# Definisanje naziva klijenta
+# Defining a unique client name for MQTT connection
 MQTT_CLIENT_NAME = "UsProject"
 
-# Inicijalizacija MQTT klijenta i konekcija na broker
+# Initialization of MQTT client and connectig to broker adress
 mqtt_client = MQTTClient(MQTT_CLIENT_NAME, "broker.hivemq.com")
 mqtt_client.connect()
 
-def clearFieldsOnDisplay():
+# Function used for clearing all the fields on display by calling
+# modified print method on display object (needed to be modified
+# because the default print from library doesn't have the option to print spaces)
+def erase_fields_from_display():
     display.set_pos(display.width-190,17)
-    display.printEmanVerzija("                            ")
+    display.print_with_spaces("                                      ")
     display.set_pos(display.width-190,57)
-    display.printEmanVerzija("                            ")
+    display.print_with_spaces("                                      ")
     display.set_pos(display.width-190,97)
-    display.printEmanVerzija("                            ")
-   
-def fillFieldsOnDisplay(displayChannel):
-    clearFieldsOnDisplay()
-    display.set_pos(display.width-190,17)
-    if channel_list:
-        display.print(displayChannel.name)
-    display.set_pos(display.width-190,57)
-    if channel_list:
-        display.print(format_number_with_separators(displayChannel.views))
-    display.set_pos(display.width-190,97)
-    if channel_list:
-        display.print(format_number_with_separators(displayChannel.subs))
-       
+    display.print_with_spaces("                                      ")
 
+# Function that clears the values from display and displays new ones based on the channel
+# object provided as a parameter
+def display_channel(channel_to_be_displayed):
+    erase_fields_from_display()
+    if channel_list:
+        display.set_pos(display.width-190,17)
+        display.print(channel_to_be_displayed.name)
+        display.set_pos(display.width-190,57)
+        display.print(format_number_with_separators(channel_to_be_displayed.views))
+        display.set_pos(display.width-190,97)
+        display.print(format_number_with_separators(channel_to_be_displayed.subs))
+
+# Function responsible for handling any messages that are being published on predefined themes
 def sub(topic, msg):
-    print("Received message on topic:", topic)
-    print("Payload:", msg)
+    global current_channel_index
 
     if topic == b'UsProject/channel/add':
         data = json.loads(msg.decode())
@@ -152,13 +92,21 @@ def sub(topic, msg):
         subs = data["subscriberCount"]
 
         channel = Channel(name, views, subs)
-        channel.print_values()
         channel_list.append(channel)
+       
+        # This is triggered only when the channel_list is empty
+        if current_channel_index == -1:
+            display_channel(channel_list[0])
+            current_channel_index += 1
         pass
+   
+    # Resets display and channel_list
     if topic == b'UsProject/channel/removeAll':
         channel_list.clear()
-        clearFieldsOnDisplay()
+        erase_fields_from_display()
+        current_channel_index = -1
         pass
+   
     elif topic == b'UsProject/channel/remove':
         data = json.loads(msg.decode())
         name = data["name"]
@@ -167,8 +115,9 @@ def sub(topic, msg):
 
         channel = Channel(name, views, subs)
         found_channel = None
-        deletingPosition = -1
+        deletingPosition = 0
 
+        # Searching the published channel and its position in channel_list
         for i, c in enumerate(channel_list):
             if c.name == channel.name:
                 found_channel = c
@@ -176,73 +125,41 @@ def sub(topic, msg):
                 break
 
         if found_channel:
-            print("Found channel:", found_channel.name)
-            #ODAVDE NIJE OK
             if current_channel_index == deletingPosition:
-                current_channel_index = (current_channel_index + 1) % len(channel_list)
-                fillFieldsOnDisplay(channel_list[0])
                 channel_list.remove(found_channel)
+                # Entering when we want to delete the channel that is currently being showed
+                # In this case we would stay on the same position and update the displayed values
+                # with the Channel that was next to the removed one
+                if len(channel_list) != 0:
+                    current_channel_index = (current_channel_index) % len(channel_list)
+                    display_channel(channel_list[current_channel_index])
+                # If we deleted the one and only element of the list the display values are
+                # completely removed
+                else:
+                    erase_fields_from_display()
+                    current_channel_index = -1
             else:
+                channel_list.remove(found_channel)
                 # Adjust the current_channel_index if it was pointing to the removed channel
-                if current_channel_index > 0:
+                if current_channel_index > deletingPosition:
                     current_channel_index -= 1
-                    fillFieldsOnDisplay(channel_list[current_channel_index])
-
-
-# Postavljanje funkcije za obradu poruka na MQTT klijentu i pretplata na teme
+                   
+# Subscription to themes and setting callback function
 mqtt_client.set_callback(sub)
 mqtt_client.subscribe(b"UsProject/channel/add")
 mqtt_client.subscribe(b"UsProject/channel/removeAll")
 mqtt_client.subscribe(b"UsProject/channel/remove")
 
+#----- Display setup -----#
 
-
-#print("Before publish")
-#mqtt_client.publish(b"UsProject/channel/add", "picoETF")
-#print("After publish")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Dimenzije displeja
+# Display const dimensions
 SCR_WIDTH = const(320)
 SCR_HEIGHT = const(240)
 SCR_ROT = const(2)
 CENTER_Y = int(SCR_WIDTH/2)
 CENTER_X = int(SCR_HEIGHT/2)
 
-# Podešenja SPI komunikacije sa displejem
+# Setting SPI communication with display
 TFT_CLK_PIN = const(18)
 TFT_MOSI_PIN = const(19)
 TFT_MISO_PIN = const(16)
@@ -250,7 +167,7 @@ TFT_CS_PIN = const(17)
 TFT_RST_PIN = const(20)
 TFT_DC_PIN = const(15)
 
-# Fontovi na raspolaganju
+# Available fonts
 fonts = [glcdfont,tt14,tt24,tt32]
 spi = SPI(
     0,
@@ -268,24 +185,24 @@ display = ILI9341(
     h=SCR_HEIGHT,
     r=3)
 
-# Set up colors
+# Set up of needed colors
 white = color565(255, 255, 255)
 red = color565(255, 0, 0)
 black = color565(0, 0, 0)
 
 display.set_font(fonts[1])
 
-# Clear the display
-display.erase()
+#----- Loading screen -----#
 
-#Loading screen
+# Clearing display on start
+display.erase()
 
 display.set_color(white,red)
 
 # Draw the YouTube play button
-x0, y0 = 100 + 20, 100 - 30 #gornji vrh
-x1, y1 = 100 + 20, 190 - 30 #donji vrh
-x2, y2 = 200 + 20, 145 - 30 #desni vrh
+x0, y0 = 100 + 20, 100 - 30 # Upper point
+x1, y1 = 100 + 20, 190 - 30 # Lower point
+x2, y2 = 200 + 20, 145 - 30 # Right point
 
 display.fill_rectangle(0, 0, display.width, display.height, red)
 display.draw_triangle(x0, y0, x1, y1, x2, y2, white)
@@ -296,6 +213,8 @@ display.print("YouTube Subscriber Counter")
 # Wait for a few seconds
 time.sleep(2)
 
+#----- Main screen -----#
+
 # Set new font colors
 display.set_color(black,white)
 
@@ -303,13 +222,14 @@ display.set_color(black,white)
 display.fill_rectangle(0, 0, display.width, display.height, white)
 display.fill_rectangle(0, 0, display.width-200, display.height, red)
 
-# Draw the YouTube play button
-x0, y0 = 45, 100 #gornji vrh
-x1, y1 = 45, 140 #donji vrh
-x2, y2 = 80, CENTER_X #desni vrh
+# Draw the small YouTube play button
+x0, y0 = 45, 100      # Upper point
+x1, y1 = 45, 140      # Lower point
+x2, y2 = 80, CENTER_X # Right point
 display.draw_triangle(x0, y0, x1, y1, x2, y2, white)
 display.fill_triangle(x0, y0, x1, y1, x2, y2, white)
 
+# Set the templated text
 display.set_pos(display.width-190,5)
 display.print("Selected Channel:")
 
@@ -322,8 +242,10 @@ display.print("Number of Subscribers:")
 display.set_pos(display.width-100,200)
 display.print("Next Channel (press button)")
 
-#time.sleep(200)
+#----- Button handling setup -----#
 
+# This function recieves a number in format '123456789' and returns the number as string
+# in a more natural format with spaces "123 456 789"
 def format_number_with_separators(number):
     number_str = str(number)
     formatted_str = ""
@@ -340,19 +262,21 @@ def format_number_with_separators(number):
 
     return formatted_str
 
-# Define a function to handle button press event
+# This function handles button press event
 def button_press_handler(pin):
     global current_channel_index
-
-    if channel_list:
-        fillFieldsOnDisplay(channel_list[current_channel_index])
-
-    # Increment the current channel index only if the list is not empty
+   
+    # Increment the current channel index only if the list is not empty and
+    # display the new current channel attriubutes
     if channel_list:
         current_channel_index = (current_channel_index + 1) % len(channel_list)
+        display_channel(channel_list[current_channel_index])
 
 #Set up the button interrupt
 button_pin.irq(trigger=Pin.IRQ_FALLING, handler=button_press_handler)
 
+#----- Main code -----#
+
+# Infinite while loop that watches if anything is published on subscribed themes
 while True:
     mqtt_client.wait_msg()

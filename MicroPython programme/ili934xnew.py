@@ -153,6 +153,7 @@ class ILI9341:
             (_GAMSET, b"\x01"),
             (_PGAMCTRL, b"\x0f\x31\x2b\x0c\x0e\x08\x4e\xf1\x37\x07\x10\x03\x0e\x09\x00"),
             (_NGAMCTRL, b"\x00\x0e\x14\x03\x11\x07\x31\xc1\x48\x08\x0f\x0c\x31\x36\x0f")):
+
             self._write(command, data)
         self._write(_SLPOUT)
         time.sleep_ms(120)
@@ -168,6 +169,7 @@ class ILI9341:
         self.dc(0)
         self.cs(0)
         self.spi.write(bytearray([command]))
+
         self.cs(1)
         if data is not None:
             self._data(data)
@@ -193,6 +195,7 @@ class ILI9341:
         self.dc(0)
         self.cs(0)
         self.spi.write(bytearray([command]))
+
         data = self.spi.read(count)
         self.cs(1)
         return data
@@ -266,6 +269,7 @@ class ILI9341:
             pos += char_w
         fb = framebuf.FrameBuffer(buf,str_w, self._font.height(), framebuf.MONO_VLSB)
         self.blit(fb,x,y,str_w,self._font.height())
+
         return x+str_w
 
     def scroll(self, dy):
@@ -292,6 +296,7 @@ class ILI9341:
             if ch == '\n':
                 if pos>0:
                     self.chars(text[written:pos],curx,cury)
+
                 curx = 0; written = pos+1; width = 0
                 cury = self.next_line(cury,char_h)
             else:
@@ -326,7 +331,8 @@ class ILI9341:
             curx = self._x; cury = self.next_line(cury,char_h)
         self._y = cury
 
-    def printEmanVerzija(self, text):
+
+    def print_with_spaces(self, text):
         cury = self._y
         curx = self._x
         char_h = self._font.height()
@@ -365,35 +371,10 @@ class ILI9341:
 
         self._y = cury
 
+    #----- Methods added for YouTubeSubscriberCounter Project -----#
 
-
-
-
-    def draw_circle(display, xpos0, ypos0, rad, col=color565(255, 255, 255)):
-        x = rad - 1
-        y = 0
-        dx = 1
-        dy = 1
-        err = dx - (rad << 1)
-        while x >= y:
-            # Prikaz pojedinačnih piksela
-            display.pixel(xpos0 + x, ypos0 + y, col)
-            display.pixel(xpos0 + y, ypos0 + x, col)
-            display.pixel(xpos0 - y, ypos0 + x, col)
-            display.pixel(xpos0 - x, ypos0 + y, col)
-            display.pixel(xpos0 - x, ypos0 - y, col)
-            display.pixel(xpos0 - y, ypos0 - x, col)
-            display.pixel(xpos0 + y, ypos0 - x, col)
-            display.pixel(xpos0 + x, ypos0 - y, col)
-            if err <= 0:
-                y += 1
-                err += dy
-                dy += 2
-            if err > 0:
-                x -= 1
-                dx += 2
-                err += dx - (rad << 1)
-               
+    # YouTube logo triangle borders are being drawn using this function which
+    # uses Brensenham's line algorithm for handling error value
     def draw_line(self, x0, y0, x1, y1, color=None):
         dx = abs(x1 - x0)
         dy = abs(y1 - y0)
@@ -416,8 +397,9 @@ class ILI9341:
                 err += dx
                 y0 += sy
    
+   
     def fill_triangle(self, x0, y0, x1, y1, x2, y2, color):
-            # Sort the vertices based on their y-coordinate y0->Top, y1->mid, y2->bot
+            # Vertices are changed based on their y-coordinate y0->Top, y1->Mid, y2->Bottom
             if y1 < y0:
                 x0, y0, x1, y1 = x1, y1, x0, y0
             if y2 < y0:
@@ -425,30 +407,27 @@ class ILI9341:
             if y2 < y1:
                 x1, y1, x2, y2 = x2, y2, x1, y1
 
-            # Calculate the slopes of the edges
-            slope_01 = (x1 - x0) / (y1 - y0) if y1 != y0 else 0
-            slope_02 = (x2 - x0) / (y2 - y0) if y2 != y0 else 0
-            slope_12 = (x2 - x1) / (y2 - y1) if y2 != y1 else 0
+            # Initialization of the Rate of Change (roc) of the edge Top<->Mid
+            # This can also be used for Mid<->Bottom edge because the triangle is symetrical
+            roc = (x1 - x0) / (y1 - y0) if y1 != y0 else 0
 
-            # Initialize the starting and ending x-values for each scanline
+            # Initialization of the starting and ending x-values for first line drawn
+            # They are the same because we go top to bottom
             left_x = right_x = x0
 
             # Fill the triangle by scanline
             for y in range(y0, y2):
+                # Filling the upper half
                 if y <= y1:
-                    left_x += slope_02
-                    right_x += slope_01
+                    right_x += roc
+                # Filling the lower half
                 else:
-                    left_x -= slope_02
-                    right_x -= slope_01
-
-                if left_x > right_x:
-                    left_x, right_x = right_x, left_x
+                    right_x -= roc
 
                 for x in range(int(left_x), int(right_x)):
                     self.pixel(x, y, color)
 
-    # Helper function to draw a filled triangle
+    # Helper function to draw a triangle
     def draw_triangle(self, x0, y0, x1, y1, x2, y2, color):
         self.draw_line(x0, y0, x1, y1, color)
         self.draw_line(x1, y1, x2, y2, color)
