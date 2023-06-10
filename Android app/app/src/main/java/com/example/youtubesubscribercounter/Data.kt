@@ -1,7 +1,6 @@
 package com.example.youtubesubscribercounter
 
 import com.google.gson.annotations.SerializedName
-import okhttp3.internal.platform.Platform
 
 data class SearchResponse(
     @SerializedName("items") val items: List<Search>?

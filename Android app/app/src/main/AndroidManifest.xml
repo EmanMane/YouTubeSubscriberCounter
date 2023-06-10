@@ -30,6 +30,4 @@
         <!-- Add any other activities or services your app uses -->
         <service android:name="org.eclipse.paho.android.service.MqttService" />
     </application>
-
-
 </manifest>

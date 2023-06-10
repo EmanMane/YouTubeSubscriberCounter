@@ -3,7 +3,6 @@ package com.example.youtubesubscribercounter
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
-import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -55,12 +54,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Disable dark mode for better UI experience
-        if (isDarkModeEnabled()) {
-            setLightMode()
-        }
-
         setContentView(R.layout.activity_main)
 
         // MQTT connection
@@ -120,23 +113,6 @@ class MainActivity : AppCompatActivity() {
             adapter.removeAllItems()
             publishRemoveAll()
         }
-    }
-
-    /**
-     * Checks if the device has dark mode set
-     */
-    private fun isDarkModeEnabled(): Boolean {
-        return when (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-            Configuration.UI_MODE_NIGHT_YES -> true
-            else -> false
-        }
-    }
-
-    /**
-     * Sets UI to light mode
-     */
-    private fun setLightMode() {
-        delegate.localNightMode = AppCompatDelegate.MODE_NIGHT_NO
     }
 
     /**
@@ -262,7 +238,7 @@ class MainActivity : AppCompatActivity() {
     /**
      * Publishes a channel in JSON format to a theme defined for removing the provided channel
      */
-    fun publishRemoveChannel(channel: Channel) {
+    private fun publishRemoveChannel(channel: Channel) {
         val name = channel.snippet?.title
         val viewCount = channel.statistics?.viewCount
         val subscriberCount = channel.statistics?.subscriberCount
