@@ -1,47 +1,45 @@
-#----- Library imports -----#
+# ----- Library imports -----#
 
 from ili934xnew import ILI9341, color565
-from machine import Pin, SPI, ADC, PWM, Timer
+from machine import Pin, SPI
 from micropython import const
-import os
-import glcdfont
 import tt14
-import tt24
-import tt32
 import time
 
 import network
 from umqtt.robust import MQTTClient
-import time
 import json
 
-#----- Initialization of needed values -----#
+# ----- Initialization of needed values -----#
 
 # Defining the button pin used for moving forvard through list of channels
 button_pin = Pin(0, Pin.IN, Pin.PULL_UP)
 
 # Defining Channel class
+
+
 class Channel:
-   
+
     # Constructor with all parameters
     def __init__(self, name, views, subs):
         self.name = name
         self.views = views
         self.subs = subs
-   
+
     # print method that prints each attribute (can be used for debug)
     def print_values(self):
         print("name:", self.name)
         print("views:", self.views)
         print("subs:", self.subs)
-       
+
+
 # Defining a list to store active channel objects
 channel_list = []
 
 # Defining the current channel index, -1 if channel_list is empty
-current_channel_index = -1        
+current_channel_index = -1
 
-#----- Establishing WiFi connection -----#
+# ----- Establishing WiFi connection -----#
 
 # Connecting to WiFi (Faculty WiFi configuration)
 sta_if = network.WLAN(network.STA_IF)
@@ -61,27 +59,35 @@ mqtt_client.connect()
 # Function used for clearing all the fields on display by calling
 # modified print method on display object (needed to be modified
 # because the default print from library doesn't have the option to print spaces)
+
+
 def erase_fields_from_display():
-    display.set_pos(display.width-190,17)
+    display.set_pos(display.width-190, 17)
     display.print_with_spaces("                                      ")
-    display.set_pos(display.width-190,57)
+    display.set_pos(display.width-190, 57)
     display.print_with_spaces("                                      ")
-    display.set_pos(display.width-190,97)
+    display.set_pos(display.width-190, 97)
     display.print_with_spaces("                                      ")
 
 # Function that clears the values from display and displays new ones based on the channel
 # object provided as a parameter
+
+
 def display_channel(channel_to_be_displayed):
     erase_fields_from_display()
     if channel_list:
-        display.set_pos(display.width-190,17)
+        display.set_pos(display.width-190, 17)
         display.print(channel_to_be_displayed.name)
-        display.set_pos(display.width-190,57)
-        display.print(format_number_with_separators(channel_to_be_displayed.views))
-        display.set_pos(display.width-190,97)
-        display.print(format_number_with_separators(channel_to_be_displayed.subs))
+        display.set_pos(display.width-190, 57)
+        display.print(format_number_with_separators(
+            channel_to_be_displayed.views))
+        display.set_pos(display.width-190, 97)
+        display.print(format_number_with_separators(
+            channel_to_be_displayed.subs))
 
 # Function responsible for handling any messages that are being published on predefined themes
+
+
 def sub(topic, msg):
     global current_channel_index
 
@@ -93,20 +99,20 @@ def sub(topic, msg):
 
         channel = Channel(name, views, subs)
         channel_list.append(channel)
-       
+
         # This is triggered only when the channel_list is empty
         if current_channel_index == -1:
             display_channel(channel_list[0])
             current_channel_index += 1
         pass
-   
+
     # Resets display and channel_list
     if topic == b'UsProject/channel/removeAll':
         channel_list.clear()
         erase_fields_from_display()
         current_channel_index = -1
         pass
-   
+
     elif topic == b'UsProject/channel/remove':
         data = json.loads(msg.decode())
         name = data["name"]
@@ -131,7 +137,8 @@ def sub(topic, msg):
                 # In this case we would stay on the same position and update the displayed values
                 # with the Channel that was next to the removed one
                 if len(channel_list) != 0:
-                    current_channel_index = (current_channel_index) % len(channel_list)
+                    current_channel_index = (
+                        current_channel_index) % len(channel_list)
                     display_channel(channel_list[current_channel_index])
                 # If we deleted the one and only element of the list the display values are
                 # completely removed
@@ -143,14 +150,15 @@ def sub(topic, msg):
                 # Adjust the current_channel_index if it was pointing to the removed channel
                 if current_channel_index > deletingPosition:
                     current_channel_index -= 1
-                   
+
+
 # Subscription to themes and setting callback function
 mqtt_client.set_callback(sub)
 mqtt_client.subscribe(b"UsProject/channel/add")
 mqtt_client.subscribe(b"UsProject/channel/removeAll")
 mqtt_client.subscribe(b"UsProject/channel/remove")
 
-#----- Display setup -----#
+# ----- Display setup -----#
 
 # Display const dimensions
 SCR_WIDTH = const(320)
@@ -167,8 +175,6 @@ TFT_CS_PIN = const(17)
 TFT_RST_PIN = const(20)
 TFT_DC_PIN = const(15)
 
-# Available fonts
-fonts = [glcdfont,tt14,tt24,tt32]
 spi = SPI(
     0,
     baudrate=62500000,
@@ -190,62 +196,64 @@ white = color565(255, 255, 255)
 red = color565(255, 0, 0)
 black = color565(0, 0, 0)
 
-display.set_font(fonts[1])
+display.set_font(tt14)
 
-#----- Loading screen -----#
+# ----- Loading screen -----#
 
 # Clearing display on start
 display.erase()
 
-display.set_color(white,red)
+display.set_color(white, red)
 
 # Draw the YouTube play button
-x0, y0 = 100 + 20, 100 - 30 # Upper point
-x1, y1 = 100 + 20, 190 - 30 # Lower point
-x2, y2 = 200 + 20, 145 - 30 # Right point
+x0, y0 = 100 + 20, 100 - 30  # Upper point
+x1, y1 = 100 + 20, 190 - 30  # Lower point
+x2, y2 = 200 + 20, 145 - 30  # Right point
 
 display.fill_rectangle(0, 0, display.width, display.height, red)
 display.draw_triangle(x0, y0, x1, y1, x2, y2, white)
 display.fill_triangle(x0, y0, x1, y1, x2, y2, white)
-display.set_pos(70,200)
+display.set_pos(70, 200)
 display.print("YouTube Subscriber Counter")
 
 # Wait for a few seconds
 time.sleep(2)
 
-#----- Main screen -----#
+# ----- Main screen -----#
 
 # Set new font colors
-display.set_color(black,white)
+display.set_color(black, white)
 
-#Main Background creation
+# Main Background creation
 display.fill_rectangle(0, 0, display.width, display.height, white)
 display.fill_rectangle(0, 0, display.width-200, display.height, red)
 
 # Draw the small YouTube play button
 x0, y0 = 45, 100      # Upper point
 x1, y1 = 45, 140      # Lower point
-x2, y2 = 80, CENTER_X # Right point
+x2, y2 = 80, CENTER_X  # Right point
 display.draw_triangle(x0, y0, x1, y1, x2, y2, white)
 display.fill_triangle(x0, y0, x1, y1, x2, y2, white)
 
 # Set the templated text
-display.set_pos(display.width-190,5)
+display.set_pos(display.width-190, 5)
 display.print("Selected Channel:")
 
-display.set_pos(display.width-190,45)
+display.set_pos(display.width-190, 45)
 display.print("Number of Views:")
 
-display.set_pos(display.width-190,85)
+display.set_pos(display.width-190, 85)
 display.print("Number of Subscribers:")
 
-display.set_pos(display.width-100,200)
+display.set_pos(display.width-100, 200)
 display.print("Next Channel (press button)")
 
-#----- Button handling setup -----#
+# ----- Button handling setup -----#
 
 # This function recieves a number in format '123456789' and returns the number as string
 # in a more natural format with spaces "123 456 789"
+
+
 def format_number_with_separators(number):
     number_str = str(number)
     formatted_str = ""
@@ -263,19 +271,22 @@ def format_number_with_separators(number):
     return formatted_str
 
 # This function handles button press event
+
+
 def button_press_handler(pin):
     global current_channel_index
-   
+
     # Increment the current channel index only if the list is not empty and
     # display the new current channel attriubutes
     if channel_list:
         current_channel_index = (current_channel_index + 1) % len(channel_list)
         display_channel(channel_list[current_channel_index])
 
-#Set up the button interrupt
+
+# Set up the button interrupt
 button_pin.irq(trigger=Pin.IRQ_FALLING, handler=button_press_handler)
 
-#----- Main code -----#
+# ----- Main code -----#
 
 # Infinite while loop that watches if anything is published on subscribed themes
 while True:
