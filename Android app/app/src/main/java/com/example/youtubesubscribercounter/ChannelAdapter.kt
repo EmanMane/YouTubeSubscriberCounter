@@ -9,6 +9,9 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.squareup.picasso.Picasso
 import jp.wasabeef.picasso.transformations.RoundedCornersTransformation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.eclipse.paho.client.mqttv3.MqttException
 
 class ChannelAdapter(private val itemList: MutableList<Channel>,
                      private val publishRemoveCallback: (Channel) -> Unit) :
@@ -71,8 +74,32 @@ class ChannelAdapter(private val itemList: MutableList<Channel>,
     }
 
     // Function to remove all items from the RecyclerView
-    fun removeAllItems() {
-        itemList.clear()
-        notifyDataSetChanged()
+    suspend fun removeAllItems() {
+        withContext(Dispatchers.Main){
+            for (i in itemList.size - 1 downTo  0){
+                itemList.removeAt(i)
+                try{
+                    notifyItemRemoved(i)
+                }
+                catch(error : Exception){
+                    println(error.message)
+                    println(error.stackTrace)
+                }
+
+            }
+        }
+
+    }
+
+    fun getChannels() : MutableList<Channel>{
+         return itemList
+    }
+
+    suspend fun removeAtIndex(index : Int){
+        withContext(Dispatchers.Main){
+            itemList.removeAt(index)
+            notifyDataSetChanged()
+        }
+
     }
 }

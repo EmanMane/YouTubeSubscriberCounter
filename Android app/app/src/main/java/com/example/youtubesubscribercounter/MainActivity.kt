@@ -10,10 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import retrofit2.Call
@@ -32,7 +29,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var keyInfoText: TextView
 
     // IMPORTANT! Use your own key because every key has daily limit of calls
-    private var apiKey = ""
+    private var apiKey = "AIzaSyCbCWDhjoyAzEbMbrALX0rPjUAZE7OgW0o"
 
     private fun getApiKey() : String {
         return apiKey
@@ -51,6 +48,8 @@ class MainActivity : AppCompatActivity() {
     private val addTheme = "UsProject/channel/add"
     private val removeTheme = "UsProject/channel/remove"
     private val removeAllTheme = "UsProject/channel/removeAll"
+    private val startUp = "UsProject/channel/startup"
+    private val sendToMobile = "UsProject/channel/sendToMobile"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,8 +109,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         removeAllButton.setOnClickListener {
-            adapter.removeAllItems()
-            publishRemoveAll()
+            val scope = CoroutineScope(Job() + Dispatchers.Main)
+
+            scope.launch {
+                adapter.removeAllItems()
+                publishRemoveAll()
+            }
+
         }
     }
 
@@ -146,7 +150,7 @@ class MainActivity : AppCompatActivity() {
                 val channel = fetchChannel(parameter)
                 if (channel != null) {
                     val channelWithDetails = fetchChannelDetails(channel)
-                    if (channelWithDetails != null) {
+                    if (channelWithDetails != null && !adapter.getChannels().contains(channelWithDetails)) {
                         publishChannel(channelWithDetails)
 
                         // Important! Must switch to Main because of the adapter change
@@ -280,16 +284,49 @@ class MainActivity : AppCompatActivity() {
             mqttClient.subscribe(addTheme)
             mqttClient.subscribe(removeAllTheme)
             mqttClient.subscribe(removeTheme)
+            mqttClient.subscribe(startUp)
+            mqttClient.subscribe(sendToMobile)
 
             // Set callback for message arrival
             mqttClient.setCallback(object : MqttCallback {
                 override fun connectionLost(cause: Throwable?) {
                     println("Connection lost: ${cause?.message}")
+                    while(!mqttClient.isConnected){
+                        mqttClient.connect()
+                        Thread.sleep(2000)
+                    }
+                    println("Vratio se connection")
                 }
 
                 override fun messageArrived(topic: String?, message: MqttMessage?) {
                     println("Message arrived on topic: $topic")
                     println("Payload: ${message?.payload?.let { String(it) }}")
+
+
+                    val payload = message?.payload.let{ String(it!!)}
+                    if (payload == "1"){
+                        startUpDisplay();
+                    }
+                    else if(payload == "removeAll"){
+                        println("removeAll++")
+                        val scope = CoroutineScope(Job() + Dispatchers.Main)
+                        scope.launch {
+                            adapter.removeAllItems()
+                        }
+
+                    }
+                    //Ovaj dio jos potencijalno treba popravit
+                    else if(payload.contains("removeCurrent", ignoreCase = true)){
+                        val scope = CoroutineScope(Job() + Dispatchers.Main)
+
+                        scope.launch {
+                            println(payload)
+                            val index = payload.split(" ")[1].toInt()
+                            println(index)
+                            adapter.removeAtIndex(index)
+                        }
+
+                    }
                 }
 
                 override fun deliveryComplete(token: IMqttDeliveryToken?) {
@@ -298,6 +335,12 @@ class MainActivity : AppCompatActivity() {
             })
         } catch (e: MqttException) {
             println("Error connecting to MQTT broker: ${e.message}")
+        }
+    }
+
+    private fun startUpDisplay() {
+        for (channel in adapter.getChannels()){
+            publishChannel(channel)
         }
     }
 }
