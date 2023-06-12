@@ -57,7 +57,6 @@ MQTT_CLIENT_NAME = "UsProject"
 # Initialization of MQTT client and connectig to broker adress
 mqtt_client = MQTTClient(MQTT_CLIENT_NAME, "broker.hivemq.com")
 mqtt_client.connect()
-
 # Function used for clearing all the fields on display by calling
 # modified print method on display object (needed to be modified
 # because the default print from library doesn't have the option to print spaces)
@@ -320,7 +319,7 @@ def button2_handler(pin):
     # display the new current channel attriubutes
     if channel_list:
         channel_list.remove(channel_list[current_channel_index])
-        mqtt_client.publish(b'UsProject/channel/sendToMobile', "removeCurrent".encode())
+        mqtt_client.publish(b'UsProject/channel/sendToMobile', ("removeCurrent " + str(current_channel_index)).encode())
         if channel_list:
             current_channel_index = (current_channel_index - 1) % len(channel_list)
             display_channel(channel_list[current_channel_index]) 
