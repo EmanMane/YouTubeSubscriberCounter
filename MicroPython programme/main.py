@@ -13,13 +13,15 @@ import json
 # ----- Initialization of needed values -----#
 
 # Defining the button pin used for moving forvard through list of channels
-button_pin = Pin(0, Pin.IN, Pin.PULL_UP)
+button0 = Pin(0)
+button1 = Pin(1)
+button2 = Pin(2)
+button3 = Pin(3)
 
 # Defining Channel class
 
 
 class Channel:
-
     # Constructor with all parameters
     def __init__(self, name, views, subs):
         self.name = name
@@ -63,17 +65,20 @@ mqtt_client.connect()
 
 def erase_fields_from_display():
     display.set_pos(display.width-190, 17)
-    display.print_with_spaces("                                      ")
+    display.print_with_spaces("                                           ")
     display.set_pos(display.width-190, 57)
-    display.print_with_spaces("                                      ")
+    display.print_with_spaces("                                           ")
     display.set_pos(display.width-190, 97)
-    display.print_with_spaces("                                      ")
+    display.print_with_spaces("                                           ")
 
 # Function that clears the values from display and displays new ones based on the channel
 # object provided as a parameter
-
+count = 0
 
 def display_channel(channel_to_be_displayed):
+    global count
+    print("here " + str(count))
+    count += 1
     erase_fields_from_display()
     if channel_list:
         display.set_pos(display.width-190, 17)
@@ -86,11 +91,9 @@ def display_channel(channel_to_be_displayed):
             channel_to_be_displayed.subs))
 
 # Function responsible for handling any messages that are being published on predefined themes
-
-
 def sub(topic, msg):
     global current_channel_index
-
+    
     if topic == b'UsProject/channel/add':
         data = json.loads(msg.decode())
         name = data["name"]
@@ -107,7 +110,7 @@ def sub(topic, msg):
         pass
 
     # Resets display and channel_list
-    if topic == b'UsProject/channel/removeAll':
+    elif topic == b'UsProject/channel/removeAll':
         channel_list.clear()
         erase_fields_from_display()
         current_channel_index = -1
@@ -211,7 +214,7 @@ x1, y1 = 100 + 20, 190 - 30  # Lower point
 x2, y2 = 200 + 20, 145 - 30  # Right point
 
 display.fill_rectangle(0, 0, display.width, display.height, red)
-display.draw_triangle(x0, y0, x1, y1, x2, y2, white)
+#display.draw_triangle(x0, y0, x1, y1, x2, y2, white)
 display.fill_triangle(x0, y0, x1, y1, x2, y2, white)
 display.set_pos(70, 200)
 display.print("YouTube Subscriber Counter")
@@ -222,7 +225,7 @@ time.sleep(2)
 # ----- Main screen -----#
 
 # Set new font colors
-display.set_color(black, white)
+
 
 # Main Background creation
 display.fill_rectangle(0, 0, display.width, display.height, white)
@@ -232,12 +235,13 @@ display.fill_rectangle(0, 0, display.width-200, display.height, red)
 x0, y0 = 45, 100      # Upper point
 x1, y1 = 45, 140      # Lower point
 x2, y2 = 80, CENTER_X  # Right point
-display.draw_triangle(x0, y0, x1, y1, x2, y2, white)
+#display.draw_triangle(x0, y0, x1, y1, x2, y2, white)
 display.fill_triangle(x0, y0, x1, y1, x2, y2, white)
 
+display.set_color(red, white)
 # Set the templated text
 display.set_pos(display.width-190, 5)
-display.print("Selected Channel:")
+display.print("Current Channel:")
 
 display.set_pos(display.width-190, 45)
 display.print("Number of Views:")
@@ -245,8 +249,19 @@ display.print("Number of Views:")
 display.set_pos(display.width-190, 85)
 display.print("Number of Subscribers:")
 
-display.set_pos(display.width-100, 200)
-display.print("Next Channel (press button)")
+display.set_color(black, white)
+
+display.set_pos(display.width-190, 155)
+display.print("Next Channel (BTN0)")
+
+display.set_pos(display.width-190, 175)
+display.print("Previous Channel (BTN1)")
+
+display.set_pos(display.width-190, 195)
+display.print("Remove Current (BTN2)")
+
+display.set_pos(display.width-190, 215)
+display.print("Remove All (BTN3)")
 
 # ----- Button handling setup -----#
 
@@ -272,22 +287,68 @@ def format_number_with_separators(number):
 
 # This function handles button press event
 
+debounce = 0
 
-def button_press_handler(pin):
-    global current_channel_index
-
+def button0_handler(pin):
+    global current_channel_index, debounce
+    if time.ticks_diff(time.ticks_ms(), debounce) < 200:
+        return
+    debounce = time.ticks_ms()
     # Increment the current channel index only if the list is not empty and
     # display the new current channel attriubutes
     if channel_list:
         current_channel_index = (current_channel_index + 1) % len(channel_list)
         display_channel(channel_list[current_channel_index])
 
+def button1_handler(pin):
+    global current_channel_index, debounce
+    if time.ticks_diff(time.ticks_ms(), debounce) < 200:
+        return
+    debounce = time.ticks_ms()
+    # Increment the current channel index only if the list is not empty and
+    # display the new current channel attriubutes
+    if channel_list:
+        current_channel_index = (current_channel_index - 1) % len(channel_list)
+        display_channel(channel_list[current_channel_index])
+
+def button2_handler(pin):
+    global current_channel_index, debounce
+    if time.ticks_diff(time.ticks_ms(), debounce) < 200:
+        return
+    debounce = time.ticks_ms()
+    # Increment the current channel index only if the list is not empty and
+    # display the new current channel attriubutes
+    if channel_list:
+        channel_list.remove(channel_list[current_channel_index])
+        mqtt_client.publish(b'UsProject/channel/sendToMobile', "removeCurrent".encode())
+        if channel_list:
+            current_channel_index = (current_channel_index - 1) % len(channel_list)
+            display_channel(channel_list[current_channel_index]) 
+        else:
+            erase_fields_from_display()
+            current_channel_index = -1
+
+def button3_handler(pin):
+    global current_channel_index, debounce
+    if time.ticks_diff(time.ticks_ms(), debounce) < 200:
+        return
+    debounce = time.ticks_ms()
+    # Increment the current channel index only if the list is not empty and
+    # display the new current channel attriubutes
+    if channel_list:
+        channel_list.clear()
+        erase_fields_from_display()
+        current_channel_index = -1
+        mqtt_client.publish(b'UsProject/channel/sendToMobile', "removeAll".encode())
 
 # Set up the button interrupt
-button_pin.irq(trigger=Pin.IRQ_FALLING, handler=button_press_handler)
+button0.irq(trigger=Pin.IRQ_FALLING, handler=button0_handler)
+button1.irq(trigger=Pin.IRQ_FALLING, handler=button1_handler)
+button2.irq(trigger=Pin.IRQ_FALLING, handler=button2_handler)
+button3.irq(trigger=Pin.IRQ_FALLING, handler=button3_handler)
 
 # ----- Main code -----#
-
+mqtt_client.publish(b'UsProject/channel/startup', str(1).encode())
 # Infinite while loop that watches if anything is published on subscribed themes
 while True:
     mqtt_client.wait_msg()
