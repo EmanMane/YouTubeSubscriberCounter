@@ -3,12 +3,15 @@
 from ili934xnew import ILI9341, color565
 from machine import Pin, SPI
 from micropython import const
+import machine
 import tt14
 import time
 
 import network
 from umqtt.robust import MQTTClient
 import json
+
+
 
 # ----- Initialization of needed values -----#
 
@@ -290,7 +293,8 @@ debounce = 0
 
 def button0_handler(pin):
     global current_channel_index, debounce
-    if time.ticks_diff(time.ticks_ms(), debounce) < 200:
+    state = machine.disable_irq()
+    if time.ticks_diff(time.ticks_ms(), debounce) < 550:
         return
     debounce = time.ticks_ms()
     # Increment the current channel index only if the list is not empty and
@@ -298,10 +302,13 @@ def button0_handler(pin):
     if channel_list:
         current_channel_index = (current_channel_index + 1) % len(channel_list)
         display_channel(channel_list[current_channel_index])
+    machine.enable_irq(state)
+    time.sleep(0.1)
 
 def button1_handler(pin):
     global current_channel_index, debounce
-    if time.ticks_diff(time.ticks_ms(), debounce) < 200:
+    state = machine.disable_irq()
+    if time.ticks_diff(time.ticks_ms(), debounce) < 550:
         return
     debounce = time.ticks_ms()
     # Increment the current channel index only if the list is not empty and
@@ -309,10 +316,13 @@ def button1_handler(pin):
     if channel_list:
         current_channel_index = (current_channel_index - 1) % len(channel_list)
         display_channel(channel_list[current_channel_index])
+    machine.enable_irq(state)
+    time.sleep(0.1)
 
 def button2_handler(pin):
     global current_channel_index, debounce
-    if time.ticks_diff(time.ticks_ms(), debounce) < 200:
+    state = machine.disable_irq()
+    if time.ticks_diff(time.ticks_ms(), debounce) < 550:
         return
     debounce = time.ticks_ms()
     # Increment the current channel index only if the list is not empty and
@@ -326,10 +336,13 @@ def button2_handler(pin):
         else:
             erase_fields_from_display()
             current_channel_index = -1
+    machine.enable_irq(state)
+    time.sleep(0.1)
 
 def button3_handler(pin):
     global current_channel_index, debounce
-    if time.ticks_diff(time.ticks_ms(), debounce) < 200:
+    state = machine.disable_irq()
+    if time.ticks_diff(time.ticks_ms(), debounce) < 400:
         return
     debounce = time.ticks_ms()
     # Increment the current channel index only if the list is not empty and
@@ -339,15 +352,19 @@ def button3_handler(pin):
         erase_fields_from_display()
         current_channel_index = -1
         mqtt_client.publish(b'UsProject/channel/sendToMobile', "removeAll".encode())
+    machine.enable_irq(state)
+    time.sleep(0.1)
 
 # Set up the button interrupt
-button0.irq(trigger=Pin.IRQ_FALLING, handler=button0_handler)
-button1.irq(trigger=Pin.IRQ_FALLING, handler=button1_handler)
-button2.irq(trigger=Pin.IRQ_FALLING, handler=button2_handler)
-button3.irq(trigger=Pin.IRQ_FALLING, handler=button3_handler)
+button0.irq(trigger=Pin.IRQ_RISING, handler=button0_handler)
+button1.irq(trigger=Pin.IRQ_RISING, handler=button1_handler)
+button2.irq(trigger=Pin.IRQ_RISING, handler=button2_handler)
+button3.irq(trigger=Pin.IRQ_RISING, handler=button3_handler)
 
 # ----- Main code -----#
 mqtt_client.publish(b'UsProject/channel/startup', str(1).encode())
 # Infinite while loop that watches if anything is published on subscribed themes
 while True:
     mqtt_client.wait_msg()
+
+
